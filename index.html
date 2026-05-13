@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>スタートアプリ</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app">
+        <header class="app-header">
+            <div class="header-inner">
+                <div class="app-logo">
+                    <span class="logo-icon">⏰</span>
+                    <h1>スタートアプリ</h1>
+                </div>
+                <div id="currentDate" class="header-date"></div>
+            </div>
+        </header>
+
+        <main class="main-content">
+
+            <!-- 現在時刻 -->
+            <div class="card clock-card">
+                <div class="clock" id="clock">00:00:00</div>
+            </div>
+
+            <!-- 推奨起床時刻 -->
+            <div class="card wakeup-card">
+                <div class="card-label">推奨起床時刻</div>
+                <div class="wakeup-time" id="wakeupTime">--:--</div>
+                <div class="wakeup-breakdown" id="wakeupBreakdown">
+                    <div class="breakdown-hint">設定を入力して「計算する」を押してください</div>
+                </div>
+            </div>
+
+            <!-- 天気情報 -->
+            <div class="card weather-card">
+                <div class="card-header">
+                    <div class="card-label">今日の天気</div>
+                    <button class="icon-btn" id="refreshWeatherBtn" title="天気を更新">↻</button>
+                </div>
+                <div class="weather-body">
+                    <div class="weather-main-info">
+                        <span class="weather-icon" id="weatherIcon">🌤️</span>
+                        <div>
+                            <div class="weather-name" id="weatherName">取得中...</div>
+                            <div class="weather-alert-badge" id="weatherAlertBadge" style="display:none">
+                                ☔ 悪天候：15分早起き
+                            </div>
+                        </div>
+                    </div>
+                    <div class="location-row">
+                        <div class="location-text" id="locationText"></div>
+                        <button class="btn-location-change" id="changeLocationBtn">📍 変更</button>
+                    </div>
+                </div>
+
+                <!-- 位置情報検索パネル -->
+                <div class="location-search-panel" id="locationSearchPanel" style="display:none">
+                    <div class="location-search-row">
+                        <input type="text" id="locationSearchInput" class="field-input"
+                               placeholder="都市名を入力（例：東京、大阪）" autocomplete="off">
+                        <button class="btn btn-add" id="locationSearchBtn">検索</button>
+                    </div>
+                    <div class="location-results" id="locationResults"></div>
+                    <div class="location-actions">
+                        <button class="btn-gps" id="useGpsBtn">📡 現在地を使う</button>
+                        <button class="btn-text" id="closeSearchBtn">閉じる</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 設定 -->
+            <div class="card settings-card">
+                <div class="card-label">設定</div>
+
+                <div class="settings-grid">
+                    <div class="field">
+                        <label class="field-label" for="departureTime">🚪 出発時刻</label>
+                        <input type="time" id="departureTime" class="field-input" value="08:00">
+                    </div>
+                    <div class="field">
+                        <label class="field-label" for="prepTime">🪥 準備（分）</label>
+                        <input type="number" id="prepTime" class="field-input" value="60" min="0" max="180" step="5">
+                    </div>
+                    <div class="field">
+                        <label class="field-label" for="walkTime">🚶 駅まで（分）</label>
+                        <input type="number" id="walkTime" class="field-input" value="10" min="0" max="60">
+                    </div>
+                </div>
+
+                <div class="toggle-field">
+                    <label class="toggle">
+                        <input type="checkbox" id="weatherToggle" checked>
+                        <span class="toggle-track">
+                            <span class="toggle-thumb"></span>
+                        </span>
+                        <span class="toggle-text">☔ 悪天候時に15分早める</span>
+                    </label>
+                </div>
+
+                <!-- 電車時刻 -->
+                <div class="train-section">
+                    <div class="section-title">🚃 電車時刻（任意）</div>
+                    <p class="section-hint">駅からの電車の発車時刻を登録すると、最適な起床時刻を計算します</p>
+                    <div class="train-input-row">
+                        <input type="time" id="trainTimeInput" class="field-input">
+                        <button class="btn btn-add" id="addTrainBtn">＋ 追加</button>
+                    </div>
+                    <div class="train-list" id="trainList">
+                        <div class="empty-trains">電車時刻が登録されていません</div>
+                    </div>
+                </div>
+
+                <button class="btn-calculate" id="calculateBtn">⏱ 起床時刻を計算する</button>
+            </div>
+
+            <!-- アラーム -->
+            <div class="card alarm-card">
+                <div class="card-label">アラーム</div>
+                <div class="alarm-time-display" id="alarmDisplay">未設定</div>
+                <div class="snooze-status" id="snoozeStatus" style="display:none"></div>
+
+                <!-- アラーム音選択 -->
+                <div class="sound-selector">
+                    <div class="sound-selector-label">アラーム音</div>
+                    <div class="sound-options">
+                        <label class="sound-option">
+                            <input type="radio" name="alarmSound" value="beep" checked>
+                            <span>📣 かろやか</span>
+                        </label>
+                        <label class="sound-option">
+                            <input type="radio" name="alarmSound" value="melody">
+                            <span>🎵 うきうき</span>
+                        </label>
+                        <label class="sound-option">
+                            <input type="radio" name="alarmSound" value="gentle">
+                            <span>🔔 がんばるぞ！</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="alarm-controls">
+                    <button class="btn btn-primary" id="setRecommendedBtn">推奨時刻でセット</button>
+                    <div class="manual-set">
+                        <input type="time" id="manualAlarmInput" class="field-input">
+                        <button class="btn btn-secondary" id="setManualBtn">手動セット</button>
+                    </div>
+                    <button class="btn btn-danger" id="cancelAlarmBtn" style="display:none">アラームを解除</button>
+                    <button class="btn-test-sound" id="testSoundBtn">🔔 テスト音を鳴らす</button>
+                </div>
+            </div>
+
+        </main>
+
+        <footer class="app-footer">
+            <div class="footer-credits">
+                地図・位置情報：<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>
+                &nbsp;／&nbsp;
+                天気：<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>
+            </div>
+        </footer>
+    </div>
+
+    <!-- アラーム鳴動オーバーレイ -->
+    <div class="overlay" id="alarmOverlay" style="display:none">
+        <div class="alarm-modal">
+            <div class="alarm-modal-icon">⏰</div>
+            <div class="alarm-modal-title">起きる時間です！</div>
+            <div class="snooze-info" id="snoozeInfo">💤 スヌーズ あと5回</div>
+            <div class="alarm-modal-buttons">
+                <button class="btn-snooze" id="snoozeBtn">💤 スヌーズ（+3分）</button>
+                <button class="btn-stop" id="stopAlarmBtn">アラームを止める</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- おみくじオーバーレイ -->
+    <div class="overlay" id="omikujiOverlay" style="display:none">
+        <div class="omikuji-modal">
+            <div class="omikuji-header">🎋 今日のおみくじ</div>
+
+            <!-- 引く前 -->
+            <div id="omikujiPre">
+                <div class="omikuji-countdown-wrap">
+                    <div class="omikuji-countdown" id="omikujiCountdown">10</div>
+                    <div class="omikuji-countdown-label">秒後に自動終了</div>
+                </div>
+                <button class="btn-omikuji" id="omikujiBtn">🎋 おみくじをひく</button>
+            </div>
+
+            <!-- 結果 -->
+            <div id="omikujiResult" style="display:none">
+                <div class="fortune-emoji" id="fortuneEmoji"></div>
+                <div class="fortune-label" id="fortuneLabel"></div>
+                <div class="fortune-sub">今日も良い1日を！</div>
+                <button class="btn-fortune-close" id="fortuneCloseBtn">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- トースト通知 -->
+    <div class="toast" id="toast"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
