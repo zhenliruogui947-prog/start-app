@@ -909,6 +909,117 @@ body {
 
 .toast.show { transform: translateX(-50%) translateY(0); }
 
+/* ===== メモカード ===== */
+.memo-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0;
+}
+
+.memo-header .card-label { margin-bottom: 0; }
+
+.btn-memo-clear {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 3px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-sub);
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+    margin-bottom: 8px;
+}
+.btn-memo-clear:hover {
+    border-color: var(--danger);
+    color: var(--danger);
+    background: #FEF2F2;
+}
+
+
+.memo-textarea {
+    width: 100%;
+    border: 1.5px solid #FDE68A;
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--text-main);
+    resize: vertical;
+    line-height: 1.7;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    background: #FEF08A;
+}
+
+.memo-textarea:focus {
+    outline: none;
+    border-color: #F59E0B;
+    box-shadow: 0 0 0 3px rgba(245,158,11,0.15);
+}
+
+.memo-textarea::placeholder {
+    color: #CBD5E1;
+}
+
+/* メモモーダル */
+.memo-modal {
+    background: white;
+    border-radius: 24px;
+    padding: 36px 32px;
+    text-align: center;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.3);
+    animation: modalIn 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    max-width: 340px;
+    width: 90%;
+}
+
+.memo-modal-icon {
+    font-size: 48px;
+    margin-bottom: 10px;
+}
+
+.memo-modal-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-sub);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 16px;
+}
+
+.memo-modal-body {
+    font-size: 16px;
+    color: var(--text-main);
+    line-height: 1.8;
+    white-space: pre-wrap;
+    text-align: left;
+    background: var(--bg);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    margin-bottom: 24px;
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.btn-memo-ok {
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 100px;
+    padding: 13px 52px;
+    font-size: 17px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+}
+.btn-memo-ok:hover {
+    background: var(--primary-dark);
+    transform: scale(1.04);
+}
+
 /* ===== フッター ===== */
 .app-footer {
     padding: 12px 16px 24px;

@@ -65,7 +65,6 @@
                     </div>
                     <div class="location-results" id="locationResults"></div>
                     <div class="location-actions">
-                        <button class="btn-gps" id="useGpsBtn">📡 現在地を使う</button>
                         <button class="btn-text" id="closeSearchBtn">閉じる</button>
                     </div>
                 </div>
@@ -128,7 +127,7 @@
                     <div class="sound-options">
                         <label class="sound-option">
                             <input type="radio" name="alarmSound" value="beep" checked>
-                            <span>📣 かろやか</span>
+                            <span>📣 さわやか</span>
                         </label>
                         <label class="sound-option">
                             <input type="radio" name="alarmSound" value="melody">
@@ -149,7 +148,25 @@
                     </div>
                     <button class="btn btn-danger" id="cancelAlarmBtn" style="display:none">アラームを解除</button>
                     <button class="btn-test-sound" id="testSoundBtn">🔔 テスト音を鳴らす</button>
+                    <div class="toggle-field" style="margin-bottom:0">
+                        <label class="toggle">
+                            <input type="checkbox" id="omikujiToggle" checked>
+                            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                            <span class="toggle-text">🎋 アラーム後におみくじを表示</span>
+                        </label>
+                    </div>
                 </div>
+            </div>
+
+            <!-- メモ -->
+            <div class="card memo-card">
+                <div class="memo-header">
+                    <div class="card-label">メモ ✏️</div>
+                    <button class="btn-memo-clear" id="memoClearBtn">クリア</button>
+                </div>
+                <textarea id="memoInput" class="memo-textarea"
+                    placeholder="起きたらやること、今日の予定など&#10;（入力するとアラームを止めた後に表示されます）"
+                    rows="4"></textarea>
             </div>
 
         </main>
@@ -197,6 +214,16 @@
                 <div class="fortune-sub">今日も良い1日を！</div>
                 <button class="btn-fortune-close" id="fortuneCloseBtn">閉じる</button>
             </div>
+        </div>
+    </div>
+
+    <!-- メモオーバーレイ -->
+    <div class="overlay" id="memoOverlay" style="display:none">
+        <div class="memo-modal">
+            <div class="memo-modal-icon">📝</div>
+            <div class="memo-modal-title">メモ</div>
+            <div class="memo-modal-body" id="memoDisplay"></div>
+            <button class="btn-memo-ok" id="memoOkBtn">OK</button>
         </div>
     </div>
 

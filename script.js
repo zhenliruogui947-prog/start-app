@@ -12,6 +12,7 @@ let snoozeCount = 0;
 const SNOOZE_MAX = 5;
 const SNOOZE_MIN = 3;
 let omikujiTimer = null;
+let omikujiEnabled = true;
 
 // ===== おみくじ定義 =====
 const FORTUNES = [
@@ -172,6 +173,9 @@ function calculateWakeup() {
     wakeupBreakdownEl.innerHTML = rows;
     renderTrainList(selectedTrain);
     showToast(`推奨起床時刻：${wakeupTimeStr}`);
+
+    // 起床時刻が決まったので天気予報を更新
+    if (savedLocation) fetchWeather();
 }
 
 function row(emoji, label, value) {
@@ -223,7 +227,7 @@ document.getElementById('addTrainBtn').addEventListener('click', () => {
     showToast(`${val} を追加しました`);
 });
 
-// ===== 天気取得（Open-Meteo API - 無料・APIキー不要） =====
+// ===== 天気取得（Open-Meteo hourly API - 起床時刻の時間帯の予報を取得） =====
 async function fetchWeatherByCoords(lat, lon, locationName) {
     weatherNameEl.textContent = '取得中...';
     weatherAlertBadgeEl.style.display = 'none';
@@ -231,10 +235,12 @@ async function fetchWeatherByCoords(lat, lon, locationName) {
     try {
         const url = `https://api.open-meteo.com/v1/forecast`
             + `?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}`
-            + `&current=weathercode&timezone=auto`;
-        const res  = await fetch(url);
-        const data = await res.json();
-        const code = data.current.weathercode;
+            + `&hourly=weathercode&timezone=auto&forecast_days=2`;
+        const data = await (await fetch(url)).json();
+
+        const targetHour = wakeupTimeStr ? parseInt(wakeupTimeStr.split(':')[0]) : 7;
+        const code = getWeatherCodeForHour(data, targetHour);
+        const timeLabel = wakeupTimeStr ? `${wakeupTimeStr} ごろの予報` : `${String(targetHour).padStart(2,'0')}:00 ごろの予報`;
 
         isBadWeather = BAD_WEATHER_CODES.has(code);
         const info = WEATHER_INFO[code] ?? { label: `天気コード ${code}`, icon: '🌡️' };
@@ -242,7 +248,7 @@ async function fetchWeatherByCoords(lat, lon, locationName) {
         weatherIconEl.textContent = info.icon;
         weatherNameEl.textContent = info.label;
         weatherAlertBadgeEl.style.display = isBadWeather ? 'inline-block' : 'none';
-        locationTextEl.textContent = locationName ? `📍 ${locationName}` : '';
+        locationTextEl.textContent = `📍 ${locationName}　🕐 ${timeLabel}`;
         saveData();
     } catch {
         weatherNameEl.textContent = '天気の取得に失敗しました';
@@ -250,69 +256,85 @@ async function fetchWeatherByCoords(lat, lon, locationName) {
     }
 }
 
-async function fetchWeather() {
-    if (savedLocation) {
-        await fetchWeatherByCoords(savedLocation.lat, savedLocation.lon, savedLocation.name);
-        return;
-    }
+// 指定した時刻(hour)の天気コードを hourly データから取得
+function getWeatherCodeForHour(data, targetHour) {
+    const times = data.hourly?.time ?? [];
+    const codes = data.hourly?.weathercode ?? [];
+    const now   = new Date();
 
-    weatherNameEl.textContent = '取得中...';
-    weatherIconEl.textContent = '🌤️';
-    locationTextEl.textContent = '';
+    for (let daysAhead = 0; daysAhead <= 1; daysAhead++) {
+        const d = new Date(now);
+        d.setDate(d.getDate() + daysAhead);
+        const yyyy = d.getFullYear();
+        const mm   = String(d.getMonth() + 1).padStart(2, '0');
+        const dd   = String(d.getDate()).padStart(2, '0');
+        const hh   = String(targetHour).padStart(2, '0');
+        const idx  = times.indexOf(`${yyyy}-${mm}-${dd}T${hh}:00`);
+        if (idx < 0) continue;
 
-    if (!navigator.geolocation) {
-        weatherNameEl.textContent = '位置情報を利用できません';
-        locationTextEl.textContent = '「📍 変更」から都市を登録してください';
-        return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-        async ({ coords }) => {
-            await fetchWeatherByCoords(
-                coords.latitude, coords.longitude,
-                null // 現在地の場合はタイムゾーン名を表示
-            );
-            // タイムゾーンから地名を補完
-            if (!savedLocation) {
-                const url = `https://api.open-meteo.com/v1/forecast`
-                    + `?latitude=${coords.latitude.toFixed(4)}&longitude=${coords.longitude.toFixed(4)}`
-                    + `&current=weathercode&timezone=auto`;
-                try {
-                    const d = await (await fetch(url)).json();
-                    const tz = d.timezone ?? '';
-                    if (tz) locationTextEl.textContent = `📍 ${tz.split('/').pop().replace('_', ' ')}（現在地）`;
-                } catch { /* 無視 */ }
-            }
-        },
-        () => {
-            weatherNameEl.textContent = '位置未設定';
-            locationTextEl.textContent = '「📍 変更」から都市を登録してください';
+        // 今日の場合：その時刻がまだ未来なら採用
+        if (daysAhead === 0) {
+            const targetTime = new Date(d);
+            targetTime.setHours(targetHour, 0, 0, 0);
+            if (targetTime > now) return codes[idx];
+        } else {
+            return codes[idx]; // 明日は無条件で採用
         }
-    );
+    }
+    return codes[0] ?? 0; // フォールバック
+}
+
+async function fetchWeather() {
+    if (!savedLocation) {
+        weatherNameEl.textContent = '地域が未設定です';
+        locationTextEl.textContent = '「📍 変更」から都市を登録してください';
+        weatherIconEl.textContent = '📍';
+        return;
+    }
+    await fetchWeatherByCoords(savedLocation.lat, savedLocation.lon, savedLocation.name);
 }
 
 document.getElementById('refreshWeatherBtn').addEventListener('click', fetchWeather);
 
-// ===== 位置情報検索（Nominatim / OpenStreetMap - 市区町村・駅名まで対応） =====
+// ===== 位置情報検索（Nominatim / OpenStreetMap - 市・区レベル） =====
+
+// 町・村・字・集落レベルは除外する
+const EXCLUDED_TYPES = new Set([
+    'town', 'village', 'hamlet', 'isolated_dwelling',
+    'farm', 'allotments', 'neighbourhood', 'quarter',
+]);
+
 async function searchLocation(query) {
     locationResultsEl.innerHTML = '<div class="location-result-empty">検索中...</div>';
     try {
         const url = `https://nominatim.openstreetmap.org/search`
             + `?q=${encodeURIComponent(query)}`
-            + `&format=json&accept-language=ja&limit=8&addressdetails=1`;
-        const results = await (await fetch(url, {
+            + `&format=json&accept-language=ja&limit=15&addressdetails=1`;
+        const raw = await (await fetch(url, {
             headers: {
                 'Accept-Language': 'ja',
                 'User-Agent': 'start-app/1.0 (personal alarm clock app)',
             }
         })).json();
 
-        if (!results.length) {
-            locationResultsEl.innerHTML = '<div class="location-result-empty">見つかりませんでした<br><small>別のキーワードで試してください</small></div>';
+        // 市・区レベルのみ残す（町・村などを除外）
+        const results = raw.filter(r => !EXCLUDED_TYPES.has(r.type));
+
+        // 重複する地名を除去（同じnameの最初だけ残す）
+        const seen = new Set();
+        const unique = results.filter(r => {
+            const { name } = formatNominatimResult(r);
+            if (seen.has(name)) return false;
+            seen.add(name);
+            return true;
+        }).slice(0, 8);
+
+        if (!unique.length) {
+            locationResultsEl.innerHTML = '<div class="location-result-empty">市・区レベルの地名が見つかりませんでした<br><small>例：横浜市、渋谷区、大阪市</small></div>';
             return;
         }
 
-        locationResultsEl.innerHTML = results.map((r, i) => {
+        locationResultsEl.innerHTML = unique.map((r, i) => {
             const { name, sub } = formatNominatimResult(r);
             return `<div class="location-result-item" data-index="${i}">
                 <div>
@@ -324,7 +346,7 @@ async function searchLocation(query) {
 
         locationResultsEl.querySelectorAll('.location-result-item').forEach((el, i) => {
             el.addEventListener('click', () => {
-                const r = results[i];
+                const r = unique[i];
                 const { name } = formatNominatimResult(r);
                 savedLocation = {
                     name,
@@ -343,17 +365,24 @@ async function searchLocation(query) {
 
 function formatNominatimResult(r) {
     const a = r.address ?? {};
-    // 日本語住所の優先順位で短い地名を取得
-    const name =
-        a.neighbourhood || a.suburb ||
-        a.city_district  ||
-        a.town || a.village || a.hamlet ||
-        a.city ||
-        a.county ||
-        r.display_name.split(',')[0];
-    // サブ情報（都道府県 + 国）
-    const sub = [a.state, a.country].filter(Boolean).join(' / ')
-        || r.display_name.split(',').slice(1, 3).join(',').trim();
+    // 市・区レベルの地名を優先
+    let name, sub;
+    if (a.city_district) {
+        // 区レベル（例：渋谷区、中区）
+        name = a.city_district;
+        sub  = [a.city, a.state].filter(Boolean).join('　');
+    } else if (a.city) {
+        // 市レベル（例：横浜市、名古屋市）
+        name = a.city;
+        sub  = [a.state, a.country].filter(Boolean).join(' / ');
+    } else if (a.county) {
+        // 郡レベル（例：○○郡）
+        name = a.county;
+        sub  = [a.state, a.country].filter(Boolean).join(' / ');
+    } else {
+        name = r.display_name.split(',')[0].trim();
+        sub  = r.display_name.split(',').slice(1, 3).join(',').trim();
+    }
     return { name, sub };
 }
 
@@ -380,14 +409,6 @@ locationSearchInput.addEventListener('keydown', (e) => {
         const q = locationSearchInput.value.trim();
         if (q) searchLocation(q);
     }
-});
-
-document.getElementById('useGpsBtn').addEventListener('click', () => {
-    savedLocation = null;
-    closelocationSearch();
-    saveData();
-    fetchWeather();
-    showToast('📡 現在地の天気を取得します');
 });
 
 document.getElementById('closeSearchBtn').addEventListener('click', closelocationSearch);
@@ -461,7 +482,11 @@ function stopAlarm() {
     document.getElementById('snoozeStatus').style.display = 'none';
     stopAlarmSound();
     cancelAlarm();
-    showOmikujiPanel();
+    if (omikujiEnabled) {
+        showOmikujiPanel();
+    } else {
+        showMemoPanel();
+    }
 }
 
 // ===== おみくじパネル =====
@@ -489,6 +514,8 @@ function hideOmikujiPanel() {
     clearInterval(omikujiTimer);
     omikujiTimer = null;
     document.getElementById('omikujiOverlay').style.display = 'none';
+    // おみくじの後にメモを表示（メモが入力されている場合のみ）
+    showMemoPanel();
 }
 
 function drawOmikuji() {
@@ -507,6 +534,20 @@ function drawOmikuji() {
 
 document.getElementById('omikujiBtn').addEventListener('click', drawOmikuji);
 document.getElementById('fortuneCloseBtn').addEventListener('click', hideOmikujiPanel);
+
+// ===== メモパネル =====
+function showMemoPanel() {
+    const memo = document.getElementById('memoInput').value.trim();
+    if (!memo) return; // メモが空なら表示しない
+    document.getElementById('memoDisplay').textContent = memo;
+    document.getElementById('memoOverlay').style.display = 'flex';
+}
+
+function hideMemoPanel() {
+    document.getElementById('memoOverlay').style.display = 'none';
+}
+
+document.getElementById('memoOkBtn').addEventListener('click', hideMemoPanel);
 
 function updateSnoozeUI() {
     const remaining = SNOOZE_MAX - snoozeCount;
@@ -579,11 +620,46 @@ function beepSoft(freq, dur, t, vol = 0.25) {
     osc.stop(t + dur);
 }
 
-// 📣 ビープ音：短い三連ビープ
+// 📣 さわやか：鳥のさえずり音
+// 周波数グライド（上昇・下降）を組み合わせてさえずりを再現
 function playBeep(t) {
-    beep(880,  0.13, t);
-    beep(880,  0.13, t + 0.20);
-    beep(1100, 0.28, t + 0.42);
+    function chirp(f1, f2, dur, t0, vol = 0.28) {
+        // 基音（グライド）
+        const osc1  = audioCtx.createOscillator();
+        const gain1 = audioCtx.createGain();
+        osc1.connect(gain1);
+        gain1.connect(audioCtx.destination);
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(f1, t0);
+        osc1.frequency.exponentialRampToValueAtTime(f2, t0 + dur);
+        gain1.gain.setValueAtTime(0, t0);
+        gain1.gain.linearRampToValueAtTime(vol, t0 + 0.012);
+        gain1.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+        osc1.start(t0);
+        osc1.stop(t0 + dur + 0.01);
+
+        // 倍音（より自然な音色に）
+        const osc2  = audioCtx.createOscillator();
+        const gain2 = audioCtx.createGain();
+        osc2.connect(gain2);
+        gain2.connect(audioCtx.destination);
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(f1 * 1.5, t0);
+        osc2.frequency.exponentialRampToValueAtTime(f2 * 1.5, t0 + dur);
+        gain2.gain.setValueAtTime(0, t0);
+        gain2.gain.linearRampToValueAtTime(vol * 0.35, t0 + 0.012);
+        gain2.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+        osc2.start(t0);
+        osc2.stop(t0 + dur + 0.01);
+    }
+
+    // さえずりパターン（上昇→下降を繰り返す）
+    chirp(2400, 3200, 0.11, t);
+    chirp(3200, 2600, 0.09, t + 0.14);
+    chirp(2700, 3500, 0.12, t + 0.27);
+    chirp(3500, 2700, 0.10, t + 0.42);
+    chirp(2900, 3600, 0.13, t + 0.56);
+    chirp(3600, 2800, 0.09, t + 0.72);
 }
 
 // 🎵 メロディ：ド・ミ・ソ・ド の上昇フレーズ
@@ -619,7 +695,7 @@ function playPattern() {
 }
 
 // サウンドの繰り返し間隔（ms）
-const SOUND_INTERVAL = { beep: 1500, melody: 2200, gentle: 1400 };
+const SOUND_INTERVAL = { beep: 2200, melody: 2200, gentle: 1400 };
 
 function startAlarmSound() {
     initAudioContext().then(() => {
@@ -658,6 +734,8 @@ function saveData() {
         weatherToggle: document.getElementById('weatherToggle').checked,
         savedLocation,
         selectedSound,
+        memo:          document.getElementById('memoInput').value,
+        omikujiEnabled,
     }));
 }
 
@@ -684,6 +762,11 @@ function loadData() {
             const radio = document.querySelector(`input[name="alarmSound"][value="${selectedSound}"]`);
             if (radio) radio.checked = true;
         }
+        if (d.memo) document.getElementById('memoInput').value = d.memo;
+        if (d.omikujiEnabled === false) {
+            omikujiEnabled = false;
+            document.getElementById('omikujiToggle').checked = false;
+        }
         renderTrainList();
     } catch (e) {
         console.warn('設定の読み込みに失敗しました:', e);
@@ -694,6 +777,16 @@ function loadData() {
     document.getElementById(id).addEventListener('change', saveData);
 });
 document.getElementById('weatherToggle').addEventListener('change', saveData);
+document.getElementById('memoInput').addEventListener('input', saveData);
+document.getElementById('memoClearBtn').addEventListener('click', () => {
+    document.getElementById('memoInput').value = '';
+    saveData();
+    showToast('メモをクリアしました');
+});
+document.getElementById('omikujiToggle').addEventListener('change', (e) => {
+    omikujiEnabled = e.target.checked;
+    saveData();
+});
 
 // ===== 初期化 =====
 loadData();
